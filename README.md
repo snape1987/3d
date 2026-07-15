@@ -16,6 +16,12 @@ It works under Claude Code, Codex, or OpenCode. It is agent-agnostic: wherever t
 
 ---
 
+## Subjects and detail accuracy (v1.1)
+
+- Objects and characters. Each subject is classified `object`, `character`, or `hybrid`. Objects follow the hard-surface pipeline; characters route through an anatomy-aware track (head-unit proportions, facial landmarks, pose) documented in `references/character-reconstruction.md`.
+- Detail-first analysis. Before code generation the pipeline enumerates a `detailInventory` of identity-defining small details (gloss, bevel/rounding, screws/rivets, engraved or painted linework, contours, stains and wear). Every detail must map to a real component or material entry, and a strict-quality gate blocks generation until the inventory is complete. Taxonomy: `references/detail-inventory.md`.
+- Maximum likeness for a specific person or character. An opt-in projection-first path fits a parametric template to image landmarks, de-lights the photo, camera-matches the render, and projects the reference onto the mesh. A single image cannot guarantee 100 percent likeness, so the pipeline reports per-region confidence and asks for more views when it matters. Details and sources: `references/likeness-maximization.md`.
+
 ## Why it is token-efficient
 
 Most image-to-3D agent loops burn tokens by asking the model to do mechanical work — re-reading the whole model every pass, scoring pixels, validating JSON by hand, re-running steps it already did. img2threejs pushes all of that into deterministic scripts and spends model tokens only where judgment is actually required.
@@ -28,6 +34,40 @@ Most image-to-3D agent loops burn tokens by asking the model to do mechanical wo
 - **Text output, not binaries.** The result is diffable TypeScript plus a JSON spec — small, reviewable, and version-controllable, instead of multi-megabyte mesh files.
 
 The net effect: you still get a faithful 3D model from an image, but the expensive model context is reserved for visual judgment and code, not bookkeeping.
+
+## Token cost analysis
+
+The numbers below are engineering estimates, not a measured benchmark. They are order-of-magnitude figures anchored to one reference build (a rounded-bevel loot chest: gradient enamel, gold corner brackets, an emissive emblem, resolved in about six render-review cycles). Actual cost varies with the model tier, image resolution, object complexity, and — above all — how many review cycles a subject needs. Treat them as a cost model, not a guarantee.
+
+Where the tokens go per full object reconstruction (image to a verified 3D model):
+
+| Stage | Est. model tokens | Notes |
+| --- | --- | --- |
+| Deterministic scripts (probe, assessment, spec, validate, generate, sync) | ~2k-5k total | Run as subprocesses. This is the work that is near-free. |
+| Read the reference image | <1k | A small reference; higher-res costs more. |
+| Author assessment + detail inventory + spec JSON | ~15k-25k | The spec is the largest text artifact. |
+| Write and edit the Three.js factory | ~20k-45k | Scales with part count and edit iterations. |
+| Render-review loop (5-8 cycles) | ~30k-70k | The dominant cost; scales linearly with cycles. |
+| **Total, one object** | **~80k-180k** | Simple/few-cycles to complex/many-cycles. |
+
+One render-review cycle in isolation:
+
+| Step | Est. model tokens |
+| --- | --- |
+| Capture screenshot (browser tool) | ~0 (tool call) |
+| Package comparison sheet (stdlib script) | ~0 (subprocess) |
+| Inspect the comparison sheet with vision | ~2k-3k |
+| Write the review and scores (script) | ~1k-2k |
+| **Per cycle** | **~5k-12k** |
+
+Characters cost more (more review cycles plus landmark and projection checks): roughly ~150k-350k for a full stylized/likeness reconstruction once the v1.2 character generator lands.
+
+What this buys you:
+
+- Deterministic scripts contribute close to zero model tokens, so validation, gating, detail counting, sheet packaging, and pipeline state never eat context.
+- Model tokens are spent only on vision (reading one sheet per pass), authoring the spec, and writing code.
+- The gates are the savings mechanism: strict-quality blocks codegen on an underspecified spec, and the detail-inventory gate blocks it on missing detail — each avoided bad render saves roughly one full cycle (~10k-20k tokens).
+- The single biggest lever on cost is the review-cycle count. A well-formed spec up front is worth more tokens than any micro-optimization downstream.
 
 ---
 
@@ -119,6 +159,11 @@ python3 scripts/generate_threejs_factory.py spec.json --out src/createObjectMode
 | `make_visual_comparison_sheet.py` | Package one reference-vs-render sheet for review. |
 | `append_sculpt_review.py` | Record a per-pass review: scores, decision, evidence. |
 | `visual_feature_gate.py` | Internal helper enforcing per-feature score thresholds. |
+| `build_detail_inventory.py` | Slice the reference into zones and scaffold a detail inventory (gloss, bevel, fasteners, linework, stains). |
+| `extract_reference_landmarks.py` | Overlay a landmark grid and scaffold an anatomy block for character subjects. |
+| `solve_reference_camera.py` | Emit a reference-camera block so the render can be camera-matched to the photo. |
+| `delight_reference.py` | Approximate a neutral albedo from the photo before texture projection (documented approximation). |
+| `bake_projected_texture.py` | Emit a projection/UV-bake descriptor for photo-texture projection in the Three.js runtime. |
 
 The `references/` folder holds the detailed rubrics each gate applies (validation, pre-spec assessment, procedural patterns, material and lighting realism, attachment correctness, action-ready models, self-correction).
 

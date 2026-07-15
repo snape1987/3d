@@ -1483,6 +1483,160 @@ def validate_look_dev_targets(spec: dict[str, Any], errors: list[str], warnings:
             warnings.append("quality: lighting-pass needs contact shadow or ground shadow behavior")
 
 
+VALID_DETAIL_KINDS = {
+    "gloss", "bevel", "fastener", "linework", "contour", "seam", "stitch",
+    "stain", "scratch", "chip", "decal", "emissive", "hole", "groove", "ridge",
+}
+
+
+def _detail_link_keys(spec: dict[str, Any]) -> set[str]:
+    """Collect keys a detailInventory item may map to: component ids, local feature ids,
+    material ids, and material localOverride ids (with and without owner prefix)."""
+    keys: set[str] = set()
+    for comp in spec.get("componentTree", []):
+        if not isinstance(comp, dict):
+            continue
+        cid = comp.get("id")
+        if isinstance(cid, str):
+            keys.add(cid)
+        for feat in comp.get("localFeatures", []) or []:
+            if isinstance(feat, str):
+                keys.add(feat)
+                if isinstance(cid, str):
+                    keys.add(f"{cid}/{feat}")
+            elif isinstance(feat, dict) and isinstance(feat.get("id"), str):
+                keys.add(feat["id"])
+                if isinstance(cid, str):
+                    keys.add(f"{cid}/{feat['id']}")
+    for mat in spec.get("materials", []):
+        if not isinstance(mat, dict):
+            continue
+        mid = mat.get("id")
+        if isinstance(mid, str):
+            keys.add(mid)
+        for over in mat.get("localOverrides", []) or []:
+            if isinstance(over, dict) and isinstance(over.get("id"), str):
+                keys.add(over["id"])
+                if isinstance(mid, str):
+                    keys.add(f"{mid}/{over['id']}")
+    return keys
+
+
+def _has_gloss_response(spec: dict[str, Any]) -> bool:
+    for mat in spec.get("materials", []):
+        if not isinstance(mat, dict):
+            continue
+        rough = mat.get("roughness")
+        base = rough.get("base") if isinstance(rough, dict) else rough
+        if is_number(base) and float(base) < 0.35:
+            return True
+        if is_number(mat.get("clearcoat")) or isinstance(mat.get("clearcoat"), dict):
+            return True
+        for over in mat.get("localOverrides", []) or []:
+            if isinstance(over, dict) and is_number(over.get("roughness")) and float(over["roughness"]) < 0.3:
+                return True
+    return False
+
+
+def _has_repetition_or_small_parts(spec: dict[str, Any]) -> bool:
+    if [r for r in spec.get("repetitionSystems", []) if isinstance(r, dict)]:
+        return True
+    return any(
+        isinstance(c, dict) and c.get("level") == "micro"
+        for c in spec.get("componentTree", [])
+    )
+
+
+def validate_detail_inventory(spec: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    """Gate the detail inventory. Backward compatible: only enforced when a detailInventory
+    block with a positive targetMinDetails is present (new-pipeline specs)."""
+    assessment = spec.get("preSpecAssessment")
+    if not isinstance(assessment, dict):
+        return
+    inv = assessment.get("detailInventory")
+    if not isinstance(inv, dict):
+        return
+    details = inv.get("details", [])
+    if not isinstance(details, list):
+        errors.append("preSpecAssessment.detailInventory.details must be an array")
+        return
+    target = inv.get("targetMinDetails", 0)
+    if not (isinstance(target, int) and not isinstance(target, bool) and target > 0):
+        return  # not a new-pipeline spec; skip enforcement
+    if len(details) < target:
+        warnings.append(
+            f"quality: detailInventory has {len(details)} details but targetMinDetails is {target}; "
+            "enumerate identity-defining details (gloss, bevel, fasteners, linework, stains) before code generation"
+        )
+    link_keys = _detail_link_keys(spec)
+    has_gloss = has_fastener = False
+    for index, detail in enumerate(details):
+        if not isinstance(detail, dict):
+            errors.append(f"detailInventory.details[{index}] must be an object")
+            continue
+        did = detail.get("id", index)
+        kind = detail.get("kind")
+        if kind not in VALID_DETAIL_KINDS:
+            warnings.append(f"quality: detailInventory detail {did!r} has unknown kind {kind!r}")
+        maps = detail.get("mapsTo")
+        ref = maps.get("ref") if isinstance(maps, dict) else None
+        if not (isinstance(ref, str) and ref in link_keys):
+            warnings.append(
+                f"quality: detailInventory detail {did!r} does not map to a component.localFeatures "
+                "or material.localOverrides entry (no prose-only details)"
+            )
+        if kind == "gloss":
+            has_gloss = True
+        elif kind == "fastener":
+            has_fastener = True
+    if has_gloss and not _has_gloss_response(spec):
+        warnings.append(
+            "quality: detailInventory lists a gloss detail but no material provides low roughness or clearcoat response"
+        )
+    if has_fastener and not _has_repetition_or_small_parts(spec):
+        warnings.append(
+            "quality: detailInventory lists fastener details but no repetitionSystem/instancing or micro parts represent them"
+        )
+
+
+def validate_character_track(spec: dict[str, Any], errors: list[str], warnings: list[str]) -> None:
+    """Gate the character track. Backward compatible: only enforced when primaryDomain is
+    character or hybrid."""
+    assessment = spec.get("preSpecAssessment")
+    if not isinstance(assessment, dict):
+        return
+    object_class = assessment.get("objectClass")
+    domain = object_class.get("primaryDomain") if isinstance(object_class, dict) else None
+    if domain not in {"character", "hybrid"}:
+        return
+    anatomy = assessment.get("anatomy")
+    if not isinstance(anatomy, dict) or anatomy.get("applies") is not True:
+        warnings.append(
+            "quality: primaryDomain is character/hybrid but anatomy.applies is not true; "
+            "fill anatomy (styleHeads, proportions, pose, faceLandmarks) from the reference"
+        )
+        return
+    if not (is_number(anatomy.get("styleHeads")) and float(anatomy["styleHeads"]) > 0):
+        warnings.append("quality: character anatomy.styleHeads must be greater than 0 (head-unit proportion)")
+    proportions = anatomy.get("proportions")
+    if not (isinstance(proportions, dict) and any(
+        is_number(proportions.get(k)) and float(proportions[k]) > 0 for k in ("torso", "legs")
+    )):
+        warnings.append("quality: character anatomy.proportions must set torso/legs head-unit ratios")
+    landmarks = anatomy.get("faceLandmarks")
+    if not (isinstance(landmarks, dict) and any(
+        is_number(landmarks.get(k)) and float(landmarks[k]) > 0 for k in ("eyeLine", "noseBase", "mouthLine")
+    )):
+        warnings.append("quality: character anatomy.faceLandmarks must set eyeLine/noseBase/mouthLine from the reference")
+    targets = spec.get("featureReviewTargets", [])
+    character_ids = {"anatomy-proportion", "face-landmark-placement", "pose-silhouette", "outfit-and-palette"}
+    if not any(isinstance(t, dict) and t.get("id") in character_ids for t in targets):
+        warnings.append(
+            "quality: character track needs featureReviewTargets covering anatomy/face/pose/outfit "
+            "(add anatomy-proportion, face-landmark-placement, pose-silhouette, outfit-and-palette)"
+        )
+
+
 def validate_spec(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -1517,6 +1671,8 @@ def validate_spec(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     if performance is not None and not isinstance(performance, dict):
         errors.append("performanceBudget must be an object")
     validate_quality_depth(spec, errors, warnings)
+    validate_detail_inventory(spec, errors, warnings)
+    validate_character_track(spec, errors, warnings)
     if suitability == "pass" and spec.get("risks"):
         warnings.append("suitability is pass but risks are present; confirm they are acceptable")
     return errors, warnings

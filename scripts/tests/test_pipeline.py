@@ -165,6 +165,113 @@ class PipelineTest(unittest.TestCase):
         self.assertIn(r.returncode, (0, 1), r.stderr)
         self.assertTrue((self.dir / "pbr-report.json").exists() or r.returncode == 1)
 
+    # ---- Track A / Track B upgrade coverage ----
+
+    def _fresh_spec(self, complexity="moderate"):
+        run("new_pre_spec_assessment.py", "Widget", "--complexity", complexity,
+            "--out", self.assessment)
+        run("new_sculpt_spec.py", "Widget", "--assessment", self.assessment,
+            "--out", self.spec)
+        return json.loads(self.spec.read_text())
+
+    def test_new_schema_fields_present(self):
+        spec = self._fresh_spec("complex")
+        pre = spec["preSpecAssessment"]
+        self.assertIn("detailInventory", pre)
+        self.assertIn("anatomy", pre)
+        self.assertIn("primaryDomain", pre["objectClass"])
+        self.assertIn("referenceCamera", spec)
+        # targetMinDetails scales with complexity
+        self.assertEqual(pre["detailInventory"]["targetMinDetails"], 10)
+
+    def test_detail_inventory_gate_fires_on_empty(self):
+        self._fresh_spec("moderate")
+        strict = run("validate_sculpt_spec.py", self.spec, "--strict-quality")
+        self.assertNotEqual(strict.returncode, 0)
+        self.assertIn("detailInventory has 0 details", strict.stdout + strict.stderr)
+
+    def test_detail_inventory_backward_compatible(self):
+        # A spec with NO detailInventory (pre-upgrade shape) must not trigger the detail gate.
+        spec = self._fresh_spec("moderate")
+        spec["preSpecAssessment"].pop("detailInventory", None)
+        self.spec.write_text(json.dumps(spec))
+        strict = run("validate_sculpt_spec.py", self.spec, "--strict-quality")
+        self.assertNotIn("detailInventory", strict.stdout + strict.stderr)
+
+    def test_character_gate_requires_anatomy(self):
+        spec = self._fresh_spec("moderate")
+        spec["preSpecAssessment"]["objectClass"]["primaryDomain"] = "character"
+        self.spec.write_text(json.dumps(spec))
+        strict = run("validate_sculpt_spec.py", self.spec, "--strict-quality")
+        self.assertIn("anatomy.applies is not true", strict.stdout + strict.stderr)
+
+    def test_character_track_skipped_for_objects(self):
+        # primaryDomain unassessed/object must not trigger character warnings.
+        self._fresh_spec("moderate")
+        strict = run("validate_sculpt_spec.py", self.spec, "--strict-quality")
+        self.assertNotIn("anatomy.applies", strict.stdout + strict.stderr)
+
+    def test_new_upgrade_scripts_help(self):
+        for script in ("build_detail_inventory.py", "extract_reference_landmarks.py",
+                       "solve_reference_camera.py", "delight_reference.py",
+                       "bake_projected_texture.py"):
+            r = run(script, "--help")
+            self.assertEqual(r.returncode, 0, f"{script}: {r.stderr}")
+
+    def test_build_detail_inventory_slices_zones(self):
+        out = self.dir / "di.json"
+        zones = self.dir / "zones"
+        r = run("build_detail_inventory.py", self.ref, "--mode", "grid-3x3",
+                "--out-dir", zones, "--out", out)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(out.exists())
+        crops = list(zones.glob("*.png")) if zones.exists() else []
+        self.assertGreaterEqual(len(crops), 1)
+
+    def test_delight_reference_writes_png(self):
+        out = self.dir / "albedo.png"
+        r = run("delight_reference.py", self.ref, "--out", out)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(out.exists() and out.stat().st_size > 0)
+
+    # ---- v1.2 character generator ----
+
+    def test_character_flag_builds_humanoid_tree(self):
+        run("new_sculpt_spec.py", "Person", "--character", "--out", self.spec)
+        spec = json.loads(self.spec.read_text())
+        ids = {c["id"] for c in spec["componentTree"]}
+        for part in ("root", "head", "torso", "neck", "hair", "glasses-frame-l", "arm-l"):
+            self.assertIn(part, ids)
+        # all parts flattened to root (no cascading non-uniform parent scale)
+        for c in spec["componentTree"]:
+            if c["id"] != "root":
+                self.assertEqual(c["parent"], "root")
+        # distinct per-part colors (skin vs hair vs shirt), not a single fallback
+        colors = {m["id"]: m.get("color") for m in spec["materials"] if m["id"] in ("skin", "hair", "shirt")}
+        self.assertEqual(len({colors["skin"], colors["hair"], colors["shirt"]}), 3)
+        # palette has >= 2 entries so the generator does not fall back to beige
+        for m in spec["materials"]:
+            if m["id"] in ("skin", "hair", "shirt"):
+                self.assertGreaterEqual(len(m.get("colorVariation", {}).get("palette", [])), 2)
+
+    def test_character_autodetect_from_domain(self):
+        run("new_pre_spec_assessment.py", "Person", "--complexity", "complex", "--out", self.assessment)
+        a = json.loads(self.assessment.read_text())
+        a["preSpecAssessment"]["objectClass"]["primaryDomain"] = "character"
+        self.assessment.write_text(json.dumps(a))
+        run("new_sculpt_spec.py", "Person", "--assessment", self.assessment, "--out", self.spec)
+        spec = json.loads(self.spec.read_text())
+        self.assertIn("head", {c["id"] for c in spec["componentTree"]})
+
+    def test_character_factory_generates(self):
+        run("new_sculpt_spec.py", "Person", "--character", "--out", self.spec)
+        out = self.dir / "createCharacterModel.ts"
+        r = run("generate_threejs_factory.py", self.spec, "--out", out)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        ts = out.read_text()
+        self.assertIn("createPersonModel", ts)
+        self.assertIn('meshes["head"]', ts)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

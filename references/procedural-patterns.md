@@ -59,6 +59,55 @@ Use `component.localFeatures` for details that matter to recognizability:
 
 Each feature should include placement, approximate size, orientation, material effect, geometry effect, and confidence.
 
+## Detail Recipes
+
+Concrete Three.js material/geometry approach per `detailInventory` kind. Cross-reference
+`references/detail-inventory.md` for the full taxonomy and the evidence/mapping rule.
+
+- gloss: `MeshPhysicalMaterial` with a low-`roughness` localOverride (0.05-0.2) sized to the
+  hotspot region; use `clearcoat`/`clearcoatRoughness` for a lacquer layer over a rougher
+  base, `anisotropy`/`anisotropyRotation` for brushed/streaked highlights.
+- bevel: real geometry, not a normal map - `edgeTreatment.type = chamfer`, `bevelRadius`
+  object-relative (0.02-0.08), `segments` 2-4 for a soft catch-light rim, 1 for a hard edge.
+- fastener: `InstancedMesh` for the repeated part; `count` + spacing pattern (linear, radial,
+  grid) + head shape (hemisphere/flat/hex) + recess (raised vs countersunk); low-roughness
+  metal material on the head crown.
+- linework: pick engraved groove (real recessed geometry along a path, catches shadow),
+  painted line/decal (canvas-texture localOverride, color contrast only, no relief), or
+  panel-line (thin dark AO/roughness localOverride along a seam, no depth) - match whichever
+  the reference evidence shows; do not default to decal for something that casts a shadow.
+- stain: `material.localOverrides` region with `dirtAmount`, `cavityBias` (concentrate in
+  crevices), `streak` (directional, usually gravity-down), `patinaColor` for oxidation hue
+  shift, or a `fadedMask` (lighter, desaturated) for sun-bleaching - the inverse of dirt.
+
+## Character Geometry And Material Recipes
+
+Use these when `objectClass.primaryDomain` is `character` or `hybrid`. Pair with
+`references/character-reconstruction.md` for proportion/landmark data.
+
+- head: sphere or ellipsoid scaled to the measured head-unit, then displaced/tapered toward
+  the reference face shape (jaw width, chin point, cheek fullness) rather than left spherical.
+- limbs: capsule or tapered cylinder per segment (upper arm, forearm, thigh, shin); taper
+  ratio and length come from `anatomy.proportions`; capsules keep joints visually continuous.
+- hands: simplified capsule-cluster (palm block + finger capsules) at low segment count;
+  do not attempt per-knuckle detail unless the reference is close-up and complexity is ultra.
+- hair: hair cards (alpha-mapped planes layered in clumps) for stylized/low-complexity, or a
+  tube-along-curve per lock for wavy/flowing hair with visible strand structure; prefer cards
+  by default - hair is the classic single-image failure mode, so favor legible clumps over
+  many thin strands that swim or alias.
+- face feature placement: position eyes, brows, nose, mouth using `anatomy.faceLandmarks`
+  normalized coordinates (eyeLine, eyeSpacing, noseBase, mouthLine, hairline); never eyeball
+  placement freehand once landmarks exist.
+- eyes: glossy sphere (low roughness, slight clearcoat) plus an iris decal/texture; a correct
+  catchlight (small bright localOverride matching the key light) sells more realism than
+  extra geometry.
+- clothing: extrude or plane panels per garment piece, with fold normals (a normal-map or
+  displacement pattern following expected gravity/pose creases) rather than a flat shell;
+  reuse Track A detail machinery (seam, stitch, decal, stain) for prints, buttons, wear.
+- skin: approximate subsurface scattering, not true SSS - warm base albedo, soft/lower
+  roughness variation (skin is not uniformly matte), and a rim or backlight to fake light
+  passing through thin tissue (ears, nose edge). Avoid pure-Lambertian flat skin.
+
 ## Verification Cues
 
 A procedural object is usually failing when:
