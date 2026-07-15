@@ -65,10 +65,18 @@ Attach the demo GIF (assets/demo.gif).
 
 ## 5. Awesome-list submission (the welcomed "contribute to a known repo" path)
 
-Candidate lists (verify each list's contribution rules and that the project fits before opening a PR):
-- awesome-threejs
-- awesome-webgl
-- awesome-creative-coding (procedural-generation section)
+Candidate lists (verified real + active; read each repo's CONTRIBUTING and format before a PR):
+- awesome-threejs: https://github.com/AxiomeCG/awesome-threejs (most active, well-categorized)
+- awesome-threejs (alt): https://github.com/we-list/awesome-threejs
+- awesome-three-js (alt): https://github.com/crubier/awesome-three-js
+- three-js-resources: https://github.com/Fasani/three-js-resources
+- awesome-webgl: https://github.com/sjfricke/awesome-webgl (see CONTRIBUTING.md at /blob/master/CONTRIBUTING.md)
+
+Timing note: most awesome lists expect some notability/traction. Submitting a days-old repo with
+~1 star can get a PR rejected or read as premature self-promotion. Do the showcase posts first,
+gather a bit of traction, then submit. Pick the ONE list that best fits (AxiomeCG/awesome-threejs
+under a tools/generators section), follow its exact entry format, and open a single clean PR from
+your own account.
 
 Entry line to add (match the list's existing format):
 > - [img2threejs](https://github.com/hoainho/img2threejs) - Rebuild the object in a reference image as a code-only, procedural, quality-gated Three.js model.
