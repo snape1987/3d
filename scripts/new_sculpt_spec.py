@@ -19,11 +19,12 @@ def make_pre_spec_assessment(target_name: str) -> dict:
     return {
         "objectClass": {
             "primaryType": "unassessed",
+            "primaryDomain": "unassessed",
             "formLanguage": [],
             "structureKind": [],
             "motionPotential": [],
             "materialFamilies": [],
-            "notes": "Fill from direct visual inspection before writing the final spec. Do not use fixed domain profiles.",
+            "notes": "Fill from direct visual inspection before writing the final spec. Do not use fixed domain profiles. Set primaryDomain to object, character, or hybrid.",
         },
         "complexity": {
             "tier": "unassessed",
@@ -58,6 +59,42 @@ def make_pre_spec_assessment(target_name: str) -> dict:
             "rationale": "Choose simple/moderate/complex/ultra-complex from observed structure, not from a hardcoded domain.",
         },
         "unknownsToResolveBeforeImplementation": [],
+        "detailInventory": {
+            "scanMethod": "component-zones",
+            "targetMinDetails": 0,
+            "note": (
+                "Enumerate every identity-defining small detail before authoring the spec. "
+                "Each detail must map to a component.localFeatures entry or material.localOverrides entry, "
+                "never prose only. Use scripts/build_detail_inventory.py to scan zones."
+            ),
+            "details": [],
+        },
+        "anatomy": {
+            "applies": False,
+            "styleHeads": 0.0,
+            "proportions": {
+                "headUnit": 0.0,
+                "torso": 0.0,
+                "legs": 0.0,
+                "shoulderWidth": 0.0,
+                "hipWidth": 0.0,
+            },
+            "pose": {"type": "unassessed", "jointAngles": {}},
+            "faceLandmarks": {
+                "eyeLine": 0.0,
+                "eyeSpacing": 0.0,
+                "noseBase": 0.0,
+                "mouthLine": 0.0,
+                "hairline": 0.0,
+            },
+            "features": [],
+            "confidence": 0.0,
+            "note": (
+                "Only meaningful when objectClass.primaryDomain is character or hybrid. "
+                "Set applies=true and fill from scripts/extract_reference_landmarks.py. "
+                "See references/character-reconstruction.md and references/likeness-maximization.md."
+            ),
+        },
     }
 
 
@@ -179,6 +216,201 @@ def load_assessment(path: Path | None) -> dict | None:
     return payload
 
 
+def _cnode(cid, name, primitive, parent, position, scale,
+           material="skin", role="body", level="meso", rotation=(0, 0, 0),
+           importance=0.7, sockets=None, local_features=None, anim_role="static",
+           pivot_mode="center", evidence=None):
+    """Build a full schema-valid componentTree node with humanoid-friendly defaults."""
+    return {
+        "id": cid, "name": name, "level": level, "role": role,
+        "importance": importance, "confidence": 0.8, "primitive": primitive,
+        "geometryDescriptor": {
+            "topologyIntent": "stylized character part",
+            "edgeTreatment": {"type": "none", "bevelRadius": 0.0, "segments": 1},
+            "deformationStack": [], "uvStrategy": "generated procedural coordinates",
+            "normalStrategy": "smooth vertex normals",
+        },
+        "parent": parent, "attachment": None,
+        "dimensions": {"width": float(scale[0]), "height": float(scale[1]),
+                       "depth": float(scale[2]), "units": "relative", "confidence": 0.8},
+        "transform": {"position": list(position), "rotation": list(rotation), "scale": list(scale)},
+        "actionProfile": {
+            "animationRole": anim_role,
+            "pivot": {"mode": pivot_mode, "localPosition": [0, 0, 0], "axis": [0, 1, 0], "confidence": 0.7},
+            "transformChannels": {"translate": True, "rotate": True, "scale": True,
+                                  "bend": False, "twist": False, "detach": False,
+                                  "visibility": True, "materialState": False},
+            "sockets": sockets or [],
+            "collider": {"type": "box", "offset": [0, 0, 0], "scale": [1, 1, 1],
+                         "isTrigger": False, "notes": "box proxy"},
+            "constraints": [],
+            "destruction": {"breakable": False, "fractureGroup": cid, "seamRefs": [],
+                            "detachableFragments": [], "breakImpulse": 0.0, "debrisMaterial": material},
+        },
+        "material": material, "materialLayers": [material], "deformations": [], "joints": [],
+        "seams": [], "localFeatures": local_features or [],
+        "surfaceDetail": {"macroRoughness": 0.0, "microRoughness": 0.0, "bumpAmplitude": 0.0,
+                          "normalPattern": "", "displacementPattern": "", "occlusionPattern": "",
+                          "edgeWearPattern": "", "notes": ""},
+        "evidenceRefs": evidence or ["full-object"], "details": [], "fidelityTier": "blockout",
+    }
+
+
+def make_character_component_tree(anatomy: dict | None = None) -> list:
+    """A stylized humanoid bust template (head/neck/torso/arms + hair, glasses, headphones,
+    face features). Head-unit driven; HU ~= 0.28 world units.
+
+    The generator nests children under a parent node whose transform (incl. scale) cascades,
+    so non-uniform parent scale would distort descendants. To avoid that, every visible part is
+    authored with a logical parent + local offset, then FLATTENED to world space and parented to
+    a hidden, unit-scaled root. Parents used for offsets (torso, head) are unrotated, so summing
+    offsets is exact. Parts use primitives the generator already supports."""
+    hu = 0.28
+    # (id, name, primitive, logical_parent, offset, scale, material, role, level, rotation, importance, features)
+    parts = [
+        ("torso", "Torso (shirt)", "capsule", "root", (0, 0.55 * hu, 0), (2.4 * hu, 2.2 * hu, 1.5 * hu), "shirt", "shell", "macro", (0, 0, 0), 1.0, []),
+        ("shirt-decal", "Chest graphic (Orioles)", "plane-card", "torso", (0, 0.1 * hu, 0.78 * hu), (1.5 * hu, 0.9 * hu, 1.0), "shirt-decal", "decal", "micro", (0, 0, 0), 0.7, ["cursive orange team wordmark with white outline"]),
+        ("neck", "Neck", "cylinder", "root", (0, 1.65 * hu, 0), (0.55 * hu, 0.7 * hu, 0.55 * hu), "skin", "support", "meso", (0, 0, 0), 0.6, []),
+        ("head", "Head", "ellipsoid", "root", (0, 2.5 * hu, 0.02 * hu), (0.92 * hu, 1.12 * hu, 0.98 * hu), "skin", "body", "macro", (0, 0, 0), 1.0, []),
+        ("hair", "Hair (side-swept)", "ellipsoid", "head", (0, 0.28 * hu, -0.04 * hu), (1.06 * hu, 0.82 * hu, 1.08 * hu), "hair", "hair", "meso", (0, 0, 0), 0.9, ["short sides, longer swept-back top"]),
+        ("hair-front", "Hair front mass", "ellipsoid", "head", (0.12 * hu, 0.34 * hu, 0.34 * hu), (0.7 * hu, 0.5 * hu, 0.6 * hu), "hair", "hair", "micro", (0, 0, 0), 0.6, []),
+        ("brow-l", "Eyebrow L", "box", "head", (0.2 * hu, 0.12 * hu, 0.46 * hu), (0.22 * hu, 0.04 * hu, 0.06 * hu), "hair", "detail", "micro", (0, 0, 0), 0.4, []),
+        ("brow-r", "Eyebrow R", "box", "head", (-0.2 * hu, 0.12 * hu, 0.46 * hu), (0.22 * hu, 0.04 * hu, 0.06 * hu), "hair", "detail", "micro", (0, 0, 0), 0.4, []),
+        ("nose", "Nose", "cone", "head", (0, -0.04 * hu, 0.5 * hu), (0.14 * hu, 0.28 * hu, 0.18 * hu), "skin", "detail", "micro", (1.4, 0, 0), 0.4, []),
+        ("mouth", "Mouth", "box", "head", (0, -0.34 * hu, 0.46 * hu), (0.24 * hu, 0.04 * hu, 0.05 * hu), "lips", "detail", "micro", (0, 0, 0), 0.4, []),
+        ("glasses-frame-l", "Glasses frame L", "torus", "head", (0.21 * hu, 0.02 * hu, 0.48 * hu), (0.26 * hu, 0.22 * hu, 0.08 * hu), "glasses-frame", "connector", "meso", (0, 0, 0), 0.85, []),
+        ("glasses-frame-r", "Glasses frame R", "torus", "head", (-0.21 * hu, 0.02 * hu, 0.48 * hu), (0.26 * hu, 0.22 * hu, 0.08 * hu), "glasses-frame", "connector", "meso", (0, 0, 0), 0.85, []),
+        ("glasses-bridge", "Glasses bridge", "box", "head", (0, 0.04 * hu, 0.5 * hu), (0.12 * hu, 0.04 * hu, 0.04 * hu), "glasses-frame", "connector", "micro", (0, 0, 0), 0.5, []),
+        ("lens-l", "Lens L", "plane-card", "head", (0.21 * hu, 0.02 * hu, 0.485 * hu), (0.22 * hu, 0.18 * hu, 1.0), "glasses-lens", "panel", "micro", (0, 0, 0), 0.5, []),
+        ("lens-r", "Lens R", "plane-card", "head", (-0.21 * hu, 0.02 * hu, 0.485 * hu), (0.22 * hu, 0.18 * hu, 1.0), "glasses-lens", "panel", "micro", (0, 0, 0), 0.5, []),
+        ("hp-band", "Headphone band", "torus", "root", (0, 1.78 * hu, 0.05 * hu), (0.95 * hu, 0.62 * hu, 0.7 * hu), "headphone", "ring", "meso", (1.2, 0, 0), 0.85, []),
+        ("hp-cup-l", "Ear cup L", "cylinder", "root", (0.5 * hu, 1.52 * hu, 0.35 * hu), (0.42 * hu, 0.28 * hu, 0.42 * hu), "headphone", "detail", "meso", (0, 0, 1.57), 0.7, []),
+        ("hp-cup-r", "Ear cup R", "cylinder", "root", (-0.5 * hu, 1.52 * hu, 0.35 * hu), (0.42 * hu, 0.28 * hu, 0.42 * hu), "headphone", "detail", "meso", (0, 0, 1.57), 0.7, []),
+        ("arm-l", "Upper arm L", "capsule", "torso", (1.15 * hu, -0.35 * hu, 0.1 * hu), (0.55 * hu, 1.5 * hu, 0.55 * hu), "shirt", "arm", "meso", (0, 0, 0.25), 0.7, []),
+        ("arm-r", "Upper arm R", "capsule", "torso", (-1.15 * hu, -0.35 * hu, 0.1 * hu), (0.55 * hu, 1.5 * hu, 0.55 * hu), "shirt", "arm", "meso", (0, 0, -0.25), 0.7, []),
+    ]
+    offsets = {"root": (0.0, 0.0, 0.0)}
+    for pid, _n, _p, parent, off, *_rest in parts:
+        offsets[pid] = off  # local offset; world resolved below
+
+    def world_pos(pid, parent, off):
+        x, y, z = off
+        cur = parent
+        # walk up the logical parent chain (parents are unrotated), summing offsets
+        while cur and cur != "root":
+            po = offsets.get(cur, (0.0, 0.0, 0.0))
+            x += po[0]; y += po[1]; z += po[2]
+            cur = parent_of.get(cur, "root")
+        return (x, y, z)
+
+    parent_of = {p[0]: p[3] for p in parts}
+    tree = [_cnode("root", "Character (root)", "box", None, (0, 0, 0), (1, 1, 1),
+                   material="hidden", role="body", level="macro", importance=1.0, anim_role="root")]
+    for pid, name, prim, parent, off, scale, mat, role, level, rot, imp, feats in parts:
+        tree.append(_cnode(pid, name, prim, "root", world_pos(pid, parent, off), scale,
+                           material=mat, role=role, level=level, rotation=rot, importance=imp,
+                           local_features=feats))
+    return tree
+
+
+def _shade_hex(hex_color: str, factor: float) -> str:
+    """Return a slightly darker/lighter shade of a #RRGGBB color (factor<1 darker)."""
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return hex_color
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    r, g, b = (max(0, min(255, round(c * factor))) for c in (r, g, b))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+CHARACTER_MATERIALS = [
+    {"id": "hidden", "baseColor": "#000000", "roughness": {"base": 1.0, "variation": 0.0}, "opacity": {"base": 0.0}},
+    {"id": "skin", "baseColor": "#e8b98f", "roughness": {"base": 0.55, "variation": 0.08}},
+    {"id": "hair", "baseColor": "#171310", "roughness": {"base": 0.42, "variation": 0.1}},
+    {"id": "shirt", "baseColor": "#20202a", "roughness": {"base": 0.85, "variation": 0.12}},
+    {"id": "shirt-decal", "baseColor": "#d24a20", "roughness": {"base": 0.7, "variation": 0.05}},
+    {"id": "glasses-frame", "baseColor": "#111114", "roughness": {"base": 0.35, "variation": 0.05}},
+    {"id": "glasses-lens", "baseColor": "#a9c6d8", "roughness": {"base": 0.08, "variation": 0.02}},
+    {"id": "headphone", "baseColor": "#0e0e10", "roughness": {"base": 0.5, "variation": 0.08}},
+    {"id": "lips", "baseColor": "#c98070", "roughness": {"base": 0.5, "variation": 0.05}},
+]
+
+
+def make_character_build_passes() -> list:
+    base = make_pre_spec_assessment  # noqa: reference to keep import graph obvious
+    passes = [
+        {"id": "blockout", "goal": "Match head-unit proportions and pose silhouette.",
+         "componentRefs": ["root"], "acceptance": ["Bust proportions and 3/4 pose read correctly without materials."]},
+        {"id": "proportion-lock", "goal": "Lock head/torso/limb head-unit ratios and pose angles.",
+         "componentRefs": ["root", "head", "torso"], "acceptance": ["Head-unit ratios match anatomy; silhouette matches reference."]},
+        {"id": "feature-placement", "goal": "Place facial features, hair, glasses, headphones to landmarks.",
+         "componentRefs": ["head", "hair", "glasses-frame-l", "hp-band"],
+         "acceptance": ["Eyeline/nose/mouth on landmark lines; glasses and headphones placed as in reference."]},
+        {"id": "material-pass", "goal": "Match skin/hair/cloth/metal color and roughness.",
+         "componentRefs": ["root"], "acceptance": ["Skin, hair, shirt, decal, glasses, headphone materials match reference palette."]},
+        {"id": "lighting-pass", "goal": "Soft key from reference direction plus rim.",
+         "componentRefs": ["root"], "acceptance": ["Readable under neutral light; reference-matched lighting added."]},
+        {"id": "interaction-pass", "goal": "Rig-ready pivots and sockets.",
+         "componentRefs": ["root"], "acceptance": ["Head/neck/arm pivots and face socket exposed."]},
+        {"id": "optimization-pass", "goal": "Protect runtime performance.",
+         "componentRefs": ["root"], "acceptance": ["Triangle/draw-call budget documented."]},
+    ]
+    del base
+    return passes
+
+
+def make_character_feature_targets() -> list:
+    return [
+        {"id": "anatomy-proportion", "name": "Head-unit proportions and pose", "tier": "critical",
+         "passIds": ["blockout", "proportion-lock"], "minimumScore": 0.78, "mustPass": True,
+         "componentRefs": ["root", "head", "torso"], "evidenceRefs": ["full-object"]},
+        {"id": "face-landmark-placement", "name": "Face landmarks + glasses placement", "tier": "critical",
+         "passIds": ["feature-placement"], "minimumScore": 0.75, "mustPass": True,
+         "componentRefs": ["head", "glasses-frame-l"], "evidenceRefs": ["full-object"]},
+        {"id": "pose-silhouette", "name": "Pose and bust silhouette", "tier": "critical",
+         "passIds": ["blockout", "proportion-lock"], "minimumScore": 0.75, "mustPass": True,
+         "componentRefs": ["root", "arm-l"], "evidenceRefs": ["full-object"]},
+        {"id": "outfit-and-palette", "name": "Outfit + accessories + palette", "tier": "important",
+         "passIds": ["material-pass"], "minimumScore": 0.7, "mustPass": False,
+         "componentRefs": ["shirt-decal", "headphone", "glasses-frame-l"], "evidenceRefs": ["full-object"]},
+    ]
+
+
+def apply_character_template(spec: dict, anatomy: dict | None = None) -> dict:
+    """Swap in the humanoid componentTree, character materials, build passes, and feature
+    targets. Object specs are untouched; only called when primaryDomain is character/hybrid."""
+    spec["componentTree"] = make_character_component_tree(anatomy)
+    existing = {m.get("id"): m for m in spec.get("materials", []) if isinstance(m, dict)}
+    for mat in CHARACTER_MATERIALS:
+        merged = dict(existing.get("base", {}))
+        merged.update(mat)
+        merged.setdefault("name", mat["id"])
+        merged.setdefault("type", "standard")
+        # the generator colours meshes from `color`/`albedo`, so keep them in sync with baseColor
+        base_color = mat.get("baseColor")
+        if base_color:
+            shade = _shade_hex(base_color, 0.82)
+            merged["color"] = base_color
+            # the generator only honours a palette with >= 2 entries (else it blends in beige
+            # fallback tones), so provide two near-identical shades of the intended colour.
+            merged["albedo"] = {"dominant": base_color, "secondary": [shade]}
+            merged["colorVariation"] = {"palette": [base_color, shade], "pattern": "flat",
+                                         "amplitude": 0.05, "heightCorrelation": 0.0}
+        existing[mat["id"]] = merged
+    spec["materials"] = list(existing.values())
+    spec["buildPasses"] = make_character_build_passes()
+    # A humanoid is reviewed as a whole each pass, so every pass renders all parts
+    # (unlike the object pipeline where passes add parts incrementally).
+    all_ids = [c["id"] for c in spec["componentTree"] if isinstance(c, dict) and c.get("id")]
+    for build_pass in spec["buildPasses"]:
+        build_pass["componentRefs"] = all_ids
+    spec["featureReviewTargets"] = make_character_feature_targets()
+    pipeline = spec.setdefault("sculptPipeline", {})
+    pipeline["passOrder"] = [p["id"] for p in spec["buildPasses"]]
+    pipeline["currentPass"] = "blockout"
+    return spec
+
+
 def make_spec(target_name: str, image: str | None, assessment_payload: dict | None = None) -> dict:
     target_id = slugify(target_name)
     pre_spec_assessment = make_pre_spec_assessment(target_name)
@@ -231,6 +463,17 @@ def make_spec(target_name: str, image: str | None, assessment_payload: dict | No
             "descriptionRule": "Use measurable 3D graphics terms. Avoid vague words unless they are paired with concrete geometry/material/shader parameters.",
         },
         "sourceImage": image or "",
+        "referenceCamera": {
+            "solved": False,
+            "fovDegrees": 40.0,
+            "aspect": 1.0,
+            "orientation": {"yaw": 0.0, "pitch": 0.0, "roll": 0.0},
+            "positionHint": [0.0, 0.0, 3.0],
+            "note": (
+                "For likeness work, solve the reference camera (scripts/solve_reference_camera.py) so the "
+                "review render aligns with the photo and the reference can be projected. Confirm by overlay review."
+            ),
+        },
         "suitability": "conditional",
         "scores": {
             "object_isolation": 0,
@@ -852,9 +1095,22 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--assessment", type=Path, help="Pre-spec assessment JSON from new_pre_spec_assessment.py")
     parser.add_argument("--out", type=Path, help="Output JSON path")
     parser.add_argument("--force", action="store_true", help="Overwrite output file")
+    parser.add_argument("--character", action="store_true",
+                        help="Use the humanoid character template (auto-enabled when the assessment primaryDomain is character/hybrid)")
     args = parser.parse_args(argv)
 
-    spec = make_spec(args.target_name, args.image, load_assessment(args.assessment))
+    assessment = load_assessment(args.assessment)
+    spec = make_spec(args.target_name, args.image, assessment)
+    domain = None
+    if isinstance(assessment, dict):
+        pre = assessment.get("preSpecAssessment", {})
+        oc = pre.get("objectClass", {}) if isinstance(pre, dict) else {}
+        domain = oc.get("primaryDomain") if isinstance(oc, dict) else None
+    if args.character or domain in {"character", "hybrid"}:
+        anatomy = None
+        if isinstance(assessment, dict) and isinstance(assessment.get("preSpecAssessment"), dict):
+            anatomy = assessment["preSpecAssessment"].get("anatomy")
+        apply_character_template(spec, anatomy)
     payload = json.dumps(spec, indent=2, ensure_ascii=False) + "\n"
 
     if args.out:

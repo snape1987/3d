@@ -47,12 +47,21 @@ COMPLEXITY_MINIMUMS = {
 }
 
 
+DETAIL_MINIMUMS = {
+    "simple": 3,
+    "moderate": 6,
+    "complex": 10,
+    "ultra-complex": 16,
+}
+
+
 def make_payload(target_name: str, image: str | None, complexity: str) -> dict:
     assessment = make_pre_spec_assessment(target_name)
     contract = make_quality_contract()
     assessment["sourceImage"] = image or ""
     assessment["complexity"]["tier"] = complexity
     assessment["specDepthDecision"]["requiredDepth"] = complexity
+    assessment["detailInventory"]["targetMinDetails"] = DETAIL_MINIMUMS[complexity]
     if complexity in {"complex", "ultra-complex"}:
         assessment["specDepthDecision"]["needsRepetitionSystems"] = True
         assessment["specDepthDecision"]["needsMaterialLocalOverrides"] = True

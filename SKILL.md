@@ -1,8 +1,8 @@
 ---
 name: img2threejs
-description: Turn an object reference image into a quality-gated, animation-ready procedural Three.js model built in code. Use for image-to-3D reconstruction, sculpt specs, and staged code generation.
+description: Turn an object or character reference image into a quality-gated, animation-ready procedural Three.js model built in code. Use for image-to-3D reconstruction, detail-accurate object rebuilds, stylized/likeness-maximized human characters, sculpt specs, and staged code generation.
 license: MIT
-version: 1.0.0
+version: 1.2.0
 ---
 
 # img2threejs — Image to procedural Three.js
@@ -47,10 +47,26 @@ Full flags: `references/scripts.md`. Never let a script *score* visuals — that
 1. Probe local images: `scripts/probe_reference_image.py <image>` (metadata only, not a visual check).
 2. **Pre-Spec Assessment Gate** — classify + score complexity + write the quality contract:
    `scripts/new_pre_spec_assessment.py "Name" --image <img> --complexity <simple|moderate|complex|ultra-complex> --out assessment.json`. Rules: `references/pre-spec-assessment.md`.
+   Set `objectClass.primaryDomain` (`object` | `character` | `hybrid`) and fill the seeded
+   `detailInventory` (its `targetMinDetails` scales with complexity).
+2b. **Detail inventory** (do not skip for detailed subjects) — scan zones and enumerate every
+   identity-defining small detail (gloss, bevel, fasteners, linework, contours, stains):
+   `scripts/build_detail_inventory.py <image> --mode grid-3x3 --out-dir <dir> --out di.json`.
+   Each detail MUST map to a `component.localFeatures` or `material.localOverrides` entry — never
+   prose only. Taxonomy + 3D-term recipes: `references/detail-inventory.md`.
+2c. **Character/hybrid subjects** — capture head-unit proportions + facial/body landmarks:
+   `scripts/extract_reference_landmarks.py <image> --out anatomy.json --overlay overlay.png`, then
+   fill `preSpecAssessment.anatomy`. Route: `references/character-reconstruction.md`. For maximum
+   likeness use the projection-first path (`references/likeness-maximization.md`): solve the camera
+   (`solve_reference_camera.py`), de-light the photo (`delight_reference.py`), and project it onto
+   the fitted mesh (`bake_projected_texture.py`). A single image cannot guarantee 100% likeness —
+   report per-region confidence and request more views for a real person.
 3. Author the spec from the assessment:
    `scripts/new_sculpt_spec.py "Name" --image <img> --assessment assessment.json --out object-sculpt-spec.json`.
    Replace generic starter `featureReviewTargets` with the object's real identity-defining
-   systems (≤5 critical, ≤3 important per pass). Use 3D-graphics terms only (`references/3d-graphics-terminology.md`), never "nice/smooth/shiny".
+   systems (≤5 critical, ≤3 important per pass); for characters add `anatomy-proportion`,
+   `face-landmark-placement`, `pose-silhouette`, `outfit-and-palette`. Use 3D-graphics terms only
+   (`references/3d-graphics-terminology.md`), never "nice/smooth/shiny".
 4. When material fidelity matters and a source image exists, extract reference PBR evidence per crop:
    `scripts/extract_reference_pbr.py <crop> --out-dir <dir> --material-id <id> --target-threshold 0.7`.
    Confidence < 0.7 is a stop/refine-input signal, not a pass. It is inference, not inverse rendering.
@@ -85,6 +101,16 @@ Full flags: `references/scripts.md`. Never let a script *score* visuals — that
   `references/attachment-joint-correctness.md`.
 - **Material/lighting**: `references/material-lighting-realism.md` — independent PBR channels
   (never alias albedo into roughness/normal/AO), macro/meso/micro frequency bands, real lights.
+- **Detail inventory**: for `moderate`+ subjects strict-quality blocks code gen until the
+  `detailInventory` reaches `targetMinDetails` and every detail maps to a real component/material
+  entry (gloss needs low-roughness/clearcoat; fasteners need instancing/micro parts).
+- **Character track**: when `primaryDomain` is `character`/`hybrid` (or `--character`), the spec
+  author auto-builds a stylized humanoid template (head/neck/torso/arms + hair, glasses,
+  headphones, face features), flattened to world space under a hidden root, with per-part
+  character materials and character build passes (`proportion-lock`, `feature-placement`).
+  strict-quality requires a filled `anatomy` block (head-units, proportions, face landmarks) and
+  character feature targets. Suitability routing for humans: `references/validation-rubric.md`
+  (stylized vs maximum-likeness). Stylized bust, not a face-copy; refine positions per reference.
 
 ## Self-Correction
 
