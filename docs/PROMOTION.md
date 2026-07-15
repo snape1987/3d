@@ -14,7 +14,13 @@ project earns trust instead of a spam label. Repo: https://github.com/hoainho/im
 
 ## Submitted PRs (log)
 
-- awesome-threejs (AxiomeCG): https://github.com/AxiomeCG/awesome-threejs/pull/24 (Tools > 3D modeling)
+- awesome-threejs (AxiomeCG, active): https://github.com/AxiomeCG/awesome-threejs/pull/24 (Tools > 3D modeling)
+- awesome-webgl (sjfricke, active): https://github.com/sjfricke/awesome-webgl/pull/36 (Libraries > Others)
+
+Deliberately NOT submitted (dead/stale repos - PRs there get zero visibility and read as spam-blasting):
+- we-list/awesome-threejs (last push 2016)
+- crubier/awesome-three-js (last push 2019)
+- Fasani/three-js-resources (last push 2021)
 
 ## 1. three.js Discourse — Showcase category
 
