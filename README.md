@@ -1,13 +1,12 @@
-```
-   ___              ____  _   _                    _
-  (_)_ __ ___   __ |___ \| |_| |__  _ __ ___  ___ (_)___
-  | | '_ ` _ \ / _` | __) | __| '_ \| '__/ _ \/ _ \| / __|
-  | | | | | | | (_| |/ __/| |_| | | | | |  __/  __/ | \__ \
-  |_|_| |_| |_|\__, |_____|\__|_| |_|_|  \___|\___|/ |___/
-               |___/                            |__/
-```
+<div align="center">
 
-**Rebuild the object in a reference image as a code-only, procedural Three.js model.** Quality-gated, animation-ready, and deliberately token-efficient. Reconstruction-by-code — not photogrammetry, mesh extraction, or downloaded art packs.
+<img src="assets/logo.svg" width="112" height="112" alt="img2threejs logo" />
+
+# img2threejs
+
+**Rebuild the object in a reference image as a code-only, procedural Three.js model.**
+
+Quality-gated, animation-ready, and deliberately token-efficient — reconstruction-by-code, not photogrammetry, mesh extraction, or downloaded art packs.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](SKILL.md)
@@ -16,6 +15,8 @@
 [![Tooling](https://img.shields.io/badge/tooling-Python%203.10%2B%20stdlib-3776ab.svg)](scripts)
 
 ![img2threejs demo — a reference loot-chest image reconstructed as a procedural Three.js model](assets/demo.gif)
+
+</div>
 
 *A single reference image reconstructed in code — correct proportions, colours, bevels, gold trim, and an emissive emblem — running live in the browser.*
 
@@ -27,13 +28,15 @@ Every model in the gallery is generated code, running in your browser. No mesh f
 
 ## Live demos
 
-Three reconstructions built entirely from primitives, procedural shaders, and generated geometry. Open each one, orbit it, and read the generated source.
+Reconstructions built entirely from primitives, procedural shaders, and generated geometry. The clips below are the live models running in-browser — open each one to orbit it and read the generated source.
 
-| Demo | Subject | View | Source |
-| --- | --- | --- | --- |
-| Crowned Loot Chest | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/crown-chest) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/crown-chest/createCrownChestModel.ts) |
-| Beach Character | stylized character | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/character) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/character/createCharacterModel.ts) |
-| Portrait Bust | stylized likeness | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/portrait) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/portrait/createPortraitModel.ts) |
+| Demo | Preview | Subject | View | Source |
+| --- | --- | --- | --- | --- |
+| ISSACA 12 Gauge Shotgun | <img src="assets/issaca-shotgun.gif" width="260" alt="ISSACA 12 Gauge Shotgun live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/issaca-shotgun) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/issaca-shotgun/createIssacaShotgunModel.ts) |
+| Gerber Paracord Knife | <img src="assets/gerber-knife.gif" width="260" alt="Gerber Paracord Knife live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/gerber-knife) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/gerber-knife/createGerberKnifeModel.ts) |
+| War-Hauler "SECTOR 07" | <img src="assets/warhauler.gif" width="260" alt="War-Hauler SECTOR 07 live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/warhauler) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/warhauler/createWarHaulerModel.ts) |
+| Doraemon House (isometric diorama) | — | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/doraemon-house) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/doraemon-house/createDoraemonHouseModel.ts) |
+| Crowned Loot Chest | — | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/crown-chest) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/crown-chest/createCrownChestModel.ts) |
 
 The gallery source lives in [hoainho/img2threejs-showcase](https://github.com/hoainho/img2threejs-showcase). If this project is useful, a star on this repo helps others find it.
 
