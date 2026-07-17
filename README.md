@@ -32,10 +32,11 @@ Reconstructions built entirely from primitives, procedural shaders, and generate
 
 | Demo | Preview | Subject | View | Source |
 | --- | --- | --- | --- | --- |
+| Sony WF-1000XM3 Earbuds + Case | <img src="assets/sony-wf1000xm3.gif" width="260" alt="Sony WF-1000XM3 live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/sony-wf1000xm3) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/sony-wf1000xm3/createSonyWf1000xm3Model.ts) |
 | ISSACA 12 Gauge Shotgun | <img src="assets/issaca-shotgun.gif" width="260" alt="ISSACA 12 Gauge Shotgun live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/issaca-shotgun) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/issaca-shotgun/createIssacaShotgunModel.ts) |
 | Gerber Paracord Knife | <img src="assets/gerber-knife.gif" width="260" alt="Gerber Paracord Knife live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/gerber-knife) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/gerber-knife/createGerberKnifeModel.ts) |
+| Doraemon House (isometric diorama) | <img src="assets/doraemon-house.gif" width="260" alt="Doraemon House live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/doraemon-house) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/doraemon-house/createDoraemonHouseModel.ts) |
 | War-Hauler "SECTOR 07" | <img src="assets/warhauler.gif" width="260" alt="War-Hauler SECTOR 07 live demo" /> | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/warhauler) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/warhauler/createWarHaulerModel.ts) |
-| Doraemon House (isometric diorama) | — | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/doraemon-house) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/doraemon-house/createDoraemonHouseModel.ts) |
 | Crowned Loot Chest | — | hard-surface object | [Live](https://hoainho.github.io/img2threejs-showcase/#/demo/crown-chest) | [code](https://github.com/hoainho/img2threejs-showcase/blob/main/src/demos/crown-chest/createCrownChestModel.ts) |
 
 The gallery source lives in [hoainho/img2threejs-showcase](https://github.com/hoainho/img2threejs-showcase). If this project is useful, a star on this repo helps others find it.
