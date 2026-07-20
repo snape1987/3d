@@ -272,6 +272,87 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("createPersonModel", ts)
         self.assertIn('meshes["head"]', ts)
 
+    # ---- detail-inventory -> annotation report ----
+
+    def _spec_with_linked_detail(self):
+        spec = self._fresh_spec("moderate")
+        spec["componentTree"][0]["localFeatures"] = ["bark-groove"]
+        spec["materials"][0]["localOverrides"] = [
+            {"id": "gloss-patch", "roughness": 0.1}
+        ]
+        self.spec.write_text(json.dumps(spec))
+        return spec
+
+    def _write_detail_inventory(self, path):
+        payload = {
+            "sourceImage": str(self.ref),
+            "zonesDir": str(self.dir),
+            "detailInventory": {
+                "scanMethod": "grid-3x3",
+                "targetMinDetails": 3,
+                "details": [
+                    {
+                        "id": "zone-r0c0",
+                        "kind": "groove",
+                        "description": "engraved line across the bark",
+                        "region": {"x": 0.0, "y": 0.0, "width": 0.33, "height": 0.33, "units": "normalized"},
+                        "scale": "small",
+                        "affects": "form",
+                        "mapsTo": {"type": "component", "ref": "root/bark-groove"},
+                        "evidenceRef": str(self.dir / "zone-r0c0.png"),
+                        "confidence": 0.8,
+                    },
+                    {
+                        "id": "zone-r0c1",
+                        "kind": "gloss",
+                        "description": "stray highlight nothing in the spec claims",
+                        "region": {"x": 0.33, "y": 0.0, "width": 0.33, "height": 0.33, "units": "normalized"},
+                        "scale": "small",
+                        "affects": "material",
+                        "mapsTo": {"type": "material", "ref": "does-not-exist"},
+                        "evidenceRef": str(self.dir / "zone-r0c1.png"),
+                        "confidence": 0.4,
+                    },
+                ],
+            },
+        }
+        path.write_text(json.dumps(payload))
+        return payload
+
+    def test_detail_annotations_resolve_mapped_and_flag_unmapped(self):
+        self._spec_with_linked_detail()
+        di = self.dir / "di.json"
+        self._write_detail_inventory(di)
+        out = self.dir / "annotations.md"
+        r = run("generate_detail_annotations.py", di, "--spec", self.spec, "--out", out)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        text = out.read_text()
+        self.assertIn("zone-r0c0", text)
+        self.assertIn("bark-groove", text)
+        self.assertIn("zone-r0c1", text)
+        self.assertIn("UNMAPPED", text)
+
+    def test_detail_annotations_json_matches_markdown(self):
+        self._spec_with_linked_detail()
+        di = self.dir / "di.json"
+        self._write_detail_inventory(di)
+        md = self.dir / "annotations.md"
+        r_md = run("generate_detail_annotations.py", di, "--spec", self.spec, "--out", md)
+        self.assertEqual(r_md.returncode, 0, r_md.stderr)
+        js = self.dir / "annotations.json"
+        r_json = run("generate_detail_annotations.py", di, "--spec", self.spec, "--out", js, "--json")
+        self.assertEqual(r_json.returncode, 0, r_json.stderr)
+        data = json.loads(js.read_text())
+        by_id = {item["id"]: item for item in data}
+        self.assertEqual(by_id["zone-r0c0"]["status"], "mapped")
+        self.assertIn("bark-groove", by_id["zone-r0c0"]["reproducedAs"])
+        self.assertEqual(by_id["zone-r0c1"]["status"], "unmapped")
+        self.assertIsNone(by_id["zone-r0c1"]["reproducedAs"])
+        md_text = md.read_text()
+        for item in data:
+            self.assertIn(item["id"], md_text)
+            self.assertIn("UNMAPPED" if item["status"] == "unmapped" else "bark-groove", md_text)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

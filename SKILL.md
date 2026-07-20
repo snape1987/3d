@@ -1,8 +1,8 @@
 ---
 name: img2threejs
-description: Turn an object or character reference image into a quality-gated, animation-ready procedural Three.js model built in code. Use for image-to-3D reconstruction, detail-accurate object rebuilds, stylized/likeness-maximized human characters, sculpt specs, and staged code generation.
+description: Turn an object or character reference image into a quality-gated, animation-ready procedural Three.js model built entirely in code (never mesh extraction, photogrammetry, or downloaded art). Automatically dissects the reference image into its individual identity-defining details (gloss, bevels, fasteners, linework, stains, and more), and for every detail records what it is and exactly how it is currently reproduced in the model — or flags it as unmapped so nothing is silently dropped. Drives a staged sculpt pipeline (blockout to structure to form to material to lighting to interaction to optimization) with a screenshot-based AI-vision self-correction loop at every pass. Use for image-to-3D reconstruction, detail-accurate object rebuilds, stylized/likeness-maximized human characters, sculpt specs, per-detail annotation reports, and staged procedural code generation.
 license: MIT
-version: 1.2.0
+version: 1.3.0
 ---
 
 # img2threejs — Image to procedural Three.js
@@ -49,7 +49,7 @@ Full flags: `references/scripts.md`. Never let a script *score* visuals — that
    `scripts/new_pre_spec_assessment.py "Name" --image <img> --complexity <simple|moderate|complex|ultra-complex> --out assessment.json`. Rules: `references/pre-spec-assessment.md`.
    Set `objectClass.primaryDomain` (`object` | `character` | `hybrid`) and fill the seeded
    `detailInventory` (its `targetMinDetails` scales with complexity).
-2b. **Detail inventory** (do not skip for detailed subjects) — scan zones and enumerate every
+2b. **Detail inventory (mandatory, never skip)** — scan zones and enumerate every
    identity-defining small detail (gloss, bevel, fasteners, linework, contours, stains):
    `scripts/build_detail_inventory.py <image> --mode grid-3x3 --out-dir <dir> --out di.json`.
    Each detail MUST map to a `component.localFeatures` or `material.localOverrides` entry — never
@@ -67,6 +67,10 @@ Full flags: `references/scripts.md`. Never let a script *score* visuals — that
    systems (≤5 critical, ≤3 important per pass); for characters add `anatomy-proportion`,
    `face-landmark-placement`, `pose-silhouette`, `outfit-and-palette`. Use 3D-graphics terms only
    (`references/3d-graphics-terminology.md`), never "nice/smooth/shiny".
+3b. **Detail annotation report (mandatory)** — for every detail in `di.json`, record what it is and
+   how it is currently reproduced in the just-authored spec (or flag it unmapped):
+   `scripts/generate_detail_annotations.py di.json --spec object-sculpt-spec.json --out detail-annotations.md`.
+   Any `UNMAPPED` entry means step 3 dropped a real detail — go back and link it before validating.
 4. When material fidelity matters and a source image exists, extract reference PBR evidence per crop:
    `scripts/extract_reference_pbr.py <crop> --out-dir <dir> --material-id <id> --target-threshold 0.7`.
    Confidence < 0.7 is a stop/refine-input signal, not a pass. It is inference, not inverse rendering.
@@ -131,6 +135,8 @@ material recipes + hard-won failure patterns: `references/procedural-patterns.md
 
 - **Analysis-only**: suitability verdict + scores, object extraction, macro→micro hierarchy,
   geometry strategy, material/lighting recipe, animation/destruction feasibility, plan + risks.
+- **Detail annotation report**: standard deliverable alongside the spec — one entry per dissected
+  detail with what it is and how it's reproduced (or `UNMAPPED`); see step 3b.
 - **Implementation**: the above briefly, then edit code; verify with typecheck/build + a screenshot.
 - **Not feasible**: name the blocker, ask for more views / cleaner image / accepted stylization /
   a narrower target. "This cannot reach the requested fidelity from this image" is a valid result.

@@ -13,6 +13,10 @@ and confidence. It MUST set `mapsTo` a real `component.localFeatures[]` entry or
 `material.localOverrides[]` entry. A detail described only in prose is a gate failure - if it
 does not map to a field the generator reads, it will not reach the render.
 
+Once the spec is authored, run `scripts/generate_detail_annotations.py di.json --spec
+object-sculpt-spec.json --out detail-annotations.md` to get a per-detail audit: what each
+detail is and how it's currently reproduced, or `UNMAPPED` if `mapsTo` didn't resolve.
+
 ## Taxonomy - kind to graphics terms
 
 ### gloss (do bong)
